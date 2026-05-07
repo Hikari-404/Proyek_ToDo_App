@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplikasi ToDo - Kelola Tugas Anda</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>📝 Aplikasi ToDo</h1>
+            <p>Kelola tugas dan daftar pekerjaan Anda dengan mudah</p>
+        </header>
+
+        <!-- Statistik -->
+        <div class="stats-container">
+            <div class="stat-box">
+                <div class="stat-number" id="totalTodos">0</div>
+                <div class="stat-label">Total Tugas</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="completedTodos">0</div>
+                <div class="stat-label">Selesai</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number" id="pendingTodos">0</div>
+                <div class="stat-label">Pending</div>
+            </div>
+        </div>
+
+        <!-- Form Input -->
+        <div class="add-todo-section">
+            <h2>Tambah Tugas Baru</h2>
+            <form id="todoForm" class="form-group">
+                <div class="form-row">
+                    <div class="form-field">
+                        <label for="title">Judul Tugas *</label>
+                        <input 
+                            type="text" 
+                            id="title" 
+                            placeholder="Contoh: Belajar HTML & CSS" 
+                            required
+                        >
+                    </div>
+                    <div class="form-field">
+                        <label for="dueDate">Tenggat Waktu</label>
+                        <input 
+                            type="date" 
+                            id="dueDate"
+                        >
+                    </div>
+                </div>
+
+                <div class="form-field">
+                    <label for="description">Deskripsi</label>
+                    <textarea 
+                        id="description" 
+                        placeholder="Tambahkan detail tentang tugas Anda..."
+                        rows="3"
+                    ></textarea>
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    ➕ Tambah Tugas
+                </button>
+            </form>
+        </div>
+
+        <!-- Filter dan Sort -->
+        <div class="filter-section">
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">Semua</button>
+                <button class="filter-btn" data-filter="pending">Belum Selesai</button>
+                <button class="filter-btn" data-filter="completed">Selesai</button>
+            </div>
+            <div class="sort-options">
+                <select id="sortSelect" class="sort-select">
+                    <option value="newest">Terbaru</option>
+                    <option value="oldest">Terlama</option>
+                    <option value="duedate">Tenggat Waktu</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Daftar Todos -->
+        <div class="todos-container">
+            <div id="todosList" class="todos-list">
+                <!-- Todos akan ditampilkan di sini -->
+            </div>
+            <div id="emptyState" class="empty-state">
+                <p>📭 Tidak ada tugas. Mulai tambah tugas baru Anda!</p>
+            </div>
+        </div>
+
+        <!-- Tombol Trash -->
+        <div class="trash-button-container">
+            <button id="trashBtn" class="btn btn-secondary">
+                🗑️ Trash (<span id="trashCount">0</span>)
+            </button>
+        </div>
+
+        <!-- Section Trash -->
+        <div id="trashSection" class="trash-section hidden">
+            <div class="trash-header">
+                <h2>🗑️ Trash</h2>
+                <button id="closeTrashBtn" class="btn btn-secondary">Tutup</button>
+            </div>
+            
+            <div class="trash-actions">
+                <button id="emptyTrashBtn" class="btn btn-danger" disabled>
+                    Kosongkan Trash
+                </button>
+            </div>
+
+            <div class="trash-items-container">
+                <div id="trashList" class="todos-list">
+                    <!-- Items di trash ditampilkan di sini -->
+                </div>
+                <div id="emptyTrashState" class="empty-state">
+                    <p>✨ Trash kosong</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template untuk todo item -->
+    <template id="todoTemplate">
+        <div class="todo-item" data-id="">
+            <div class="todo-checkbox">
+                <input type="checkbox" class="todo-check" />
+            </div>
+            <div class="todo-content">
+                <h3 class="todo-title"></h3>
+                <p class="todo-description"></p>
+                <div class="todo-meta">
+                    <span class="todo-date"></span>
+                    <span class="todo-due"></span>
+                </div>
+            </div>
+            <div class="todo-actions">
+                <button class="btn btn-edit" title="Edit">✏️</button>
+                <button class="btn btn-delete" title="Hapus">🗑️</button>
+            </div>
+        </div>
+    </template>
+
+    <!-- Template untuk trash item -->
+    <template id="trashTemplate">
+        <div class="trash-item" data-id="">
+            <div class="trash-info">
+                <h3 class="trash-title"></h3>
+                <p class="trash-description"></p>
+                <div class="trash-meta">
+                    <span class="trash-deleted"></span>
+                </div>
+            </div>
+            <div class="trash-actions">
+                <button class="btn btn-restore" title="Restore">↩️ Restore</button>
+                <button class="btn btn-permanent-delete" title="Hapus Permanen">🗑️ Hapus</button>
+            </div>
+        </div>
+    </template>
+
+    <!-- Modal Edit -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Tugas</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="editForm" class="form-group">
+                <div class="form-field">
+                    <label for="editTitle">Judul Tugas *</label>
+                    <input type="text" id="editTitle" required>
+                </div>
+                <div class="form-field">
+                    <label for="editDueDate">Tenggat Waktu</label>
+                    <input type="date" id="editDueDate">
+                </div>
+                <div class="form-field">
+                    <label for="editDescription">Deskripsi</label>
+                    <textarea id="editDescription" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary modal-cancel">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan Perubahan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
