@@ -1,0 +1,84 @@
+name: CD Pipeline - Staging
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    branches: ["develop"]
+    types:
+      - completed
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging (EC2)
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    environment:
+      name: staging
+      url: http://${{ secrets.EC2_STAGING_HOST }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.EC2_STAGING_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync files to EC2
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='.env' \
+            --exclude='tests/' \
+            ./ ${{ secrets.EC2_USER }}@${{ secrets.EC2_STAGING_HOST }}:/app/todo-staging/
+
+      - name: Install dependencies & restart service
+        run: |
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_STAGING_HOST }} << 'EOF'
+            set -e
+
+            cd /app/todo-staging
+
+            # Buat virtual environment jika belum ada
+            if [ ! -d "venv" ]; then
+              python3 -m venv venv
+            fi
+
+            # Aktifkan venv & install dependencies
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
+
+            # Restart service via systemd
+            sudo systemctl restart todo-staging.service
+            sudo systemctl is-active --quiet todo-staging.service && \
+              echo "✅ Service berhasil di-restart" || \
+              (echo "❌ Service gagal start" && exit 1)
+          EOF
+
+      - name: Health check
+        run: |
+          sleep 5
+          curl --fail --silent --max-time 10 \
+            http://${{ secrets.EC2_STAGING_HOST }}/health \
+            && echo "✅ Health check passed" \
+            || (echo "❌ Health check failed" && exit 1)
+
+      - name: Notify deploy success
+        if: success()
+        run: |
+          echo "🚀 Deploy ke staging berhasil!"
+          echo "URL: http://${{ secrets.EC2_STAGING_HOST }}"
+          echo "Commit: ${{ github.sha }}"
+
+      - name: Notify deploy failure
+        if: failure()
+        run: |
+          echo "🔴 Deploy ke staging GAGAL pada commit ${{ github.sha }}"

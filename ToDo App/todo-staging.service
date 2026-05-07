@@ -1,0 +1,22 @@
+[Unit]
+Description=ToDo App - Staging
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/app/todo-staging
+ExecStart=/app/todo-staging/venv/bin/python app.py
+Restart=on-failure
+RestartSec=5
+
+# Environment variables
+EnvironmentFile=/app/todo-staging/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=todo-staging
+
+[Install]
+WantedBy=multi-user.target
